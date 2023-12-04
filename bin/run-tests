@@ -1,0 +1,115 @@
+#!/bin/bash
+
+function print_usage() {
+    echo "Usage: $(basename "$0") [-d <dirpath>] [-o <filepath>] [-q] [-h]"
+}
+
+function print_options() {
+    echo
+    echo "Options:"
+    echo "    -d, --directory <dirpath>    directory containing the tests"
+    echo "    -o, --output <filepath>      write output into a file"
+    echo "    -q, --quiet                  silence output"
+    echo "    -h, --help                   display this dialogue"
+}
+
+function print_stdout() {
+    local message=$1
+    echo $message
+}
+
+function print_stderr() {
+    local message=$1
+    echo $message 1>&2
+}
+
+function run_command() {
+    local command=$1
+
+    command="${command} 2>&1"
+
+    if [[ -n "$QUIET" ]]; then
+        command="${command} >> ${OUTPUT_FILE_NAME}"
+    elif [[ -n "$OUTPUT_FILE_NAME" ]]; then
+        command="${command} | tee -a ${OUTPUT_FILE_NAME}"
+    fi
+
+    eval "$command"
+}
+
+while [[ "$#" -gt "0" ]]; do
+    case $1 in
+        -d|--directory)
+            TEST_DIRECTORY="$2"
+            shift 2
+            ;;
+        -o|--output)
+            OUTPUT_FILE_NAME="$2"
+            shift 2
+            ;;
+        -q|--quiet)
+            QUIET=1
+            shift 1
+            ;;
+        -h|--help)
+            print_usage
+            print_options
+            exit 0
+            ;;
+        *)
+            print_stderr "unrecognized option '$1'"
+            print_usage
+            exit 2
+            ;;
+    esac
+done
+
+if [[ -z "$TEST_DIRECTORY" ]]; then
+    TEST_DIRECTORY=$(pwd)
+    print_stdout "[info] setting TEST_DIRECTORY to $TEST_DIRECTORY"
+fi
+
+TEST_DIRECTORY="${TEST_DIRECTORY%/}"
+
+if [[ ! -d $TEST_DIRECTORY || ! -r $TEST_DIRECTORY ]]; then
+    print_stderr "$TEST_DIRECTORY directory cannot be read"
+    exit 1
+fi
+
+if [[ -n "$QUIET" && -z "$OUTPUT_FILE_NAME" ]]; then
+    print_stderr "Option quiet requires option output"
+    exit 1
+fi
+
+if [[ -n "$OUTPUT_FILE_NAME" ]]; then
+    if [[ -f $OUTPUT_FILE_NAME && ! -w $OUTPUT_FILE_NAME ]]; then
+        print_stderr "$OUTPUT_FILE_NAME file cannot be read"
+        exit 1
+    fi
+
+    touch $OUTPUT_FILE_NAME
+fi
+
+start=$(date +%s)
+
+run_command "echo '### started: $start'"
+run_command "echo"
+
+if [[ $(ls $TEST_DIRECTORY|grep ".*\.t$" ) ]]; then
+    run_command "echo '# $TEST_DIRECTORY'"
+    run_command "prove -wml $TEST_DIRECTORY"
+    run_command "echo"
+fi
+
+for dir in $(find $TEST_DIRECTORY -type d|grep -v $TEST_DIRECTORY$); do
+    if [[ $(ls $dir|grep ".*\.t$" ) ]]; then
+        run_command "echo '# $dir'"
+        run_command "prove -wmlr $dir"
+        run_command "echo"
+    fi
+done
+
+end=$(date +%s)
+
+run_command "echo '### ended: $end'"
+run_command "echo \"### runtime: $(($end-$start)) seconds\""

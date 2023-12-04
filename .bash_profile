@@ -1,0 +1,2 @@
+. ~/.profile
+. ~/git/dotlocal/.profile

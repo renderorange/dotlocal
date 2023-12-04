@@ -1,0 +1,3 @@
+#!/bin/bash
+
+plackup -MCwd -MPlack::App::Directory -e 'Plack::App::Directory->new({ root => Cwd::getcwd })->to_app'

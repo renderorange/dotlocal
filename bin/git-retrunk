@@ -1,0 +1,21 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+my ($onto, $branch) = @ARGV;
+
+die "usage: git-retrunk <onto> <branch>\n"
+    unless $onto;
+
+$branch ||= "HEAD";
+
+my $oldtrunk = `git which-branch $branch`;
+$oldtrunk =~ / branched from .*? at (\S+)/
+    or die "Can't determine original trunk: $oldtrunk";
+
+exec(
+    "git", "rebase",
+    "--onto", $onto,
+    $1, ($branch eq "HEAD" ? () : ($branch)),
+);

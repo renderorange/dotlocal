@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long ();
+
+my $quiet = '';
+my $local;
+Getopt::Long::GetOptions(
+    'q|quiet' => \$quiet,
+    'local'   => \$local,
+);
+
+my $branch = shift(@ARGV) || "HEAD";
+my $rev    = `git rev-parse --verify $branch`; chomp $rev;
+exit 1 unless $rev;
+
+my $refs  = $local ? "refs/heads" : "refs/remotes/origin";
+my $trunk = $local ? "master" : "origin/master";
+
+if (my $t = is_on_branch($rev, $trunk)) {
+    print $quiet ? $t : "$branch is fully merged into $t\n";
+    exit;
+}
+
+my @revlist     = map {chomp; $_} `git rev-list $branch "^$trunk"`;
+my $branchpoint = `git rev-parse $revlist[-1]~`;
+chomp $branchpoint;
+
+my $t = is_on_branch($branchpoint, $trunk)
+    or die "$branch: no common branch found!\n";
+
+print $quiet ? "$t\n" :
+               "$branch branched from $t at @{[substr($branchpoint,0,7)]} -- @{[scalar @revlist]} unmerged commits\n";
+
+sub is_on_branch {
+    my ($commit, $trunk) = @_;
+
+    my $contains = `git merge-base $commit $trunk`;
+    chomp $contains;
+
+    return $trunk if $contains eq $commit;
+    return undef;
+}
